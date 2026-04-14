@@ -3,6 +3,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const userIcon = document.getElementById("user-icon");
+  const loginModal = document.getElementById("login-modal");
+  const loginForm = document.getElementById("login-form");
+  const logoutBtn = document.getElementById("logout-btn");
+  const closeBtn = document.querySelector(".close");
+
+  let isAdmin = false;
+
+  // Function to check admin status
+  async function checkAdminStatus() {
+    try {
+      const response = await fetch("/is_admin");
+      const data = await response.json();
+      isAdmin = data.admin;
+      updateUI();
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+    }
+  }
+
+  // Function to update UI based on admin status
+  function updateUI() {
+    // Hide delete buttons if not admin
+    document.querySelectorAll(".delete-btn").forEach(btn => {
+      btn.style.display = isAdmin ? "inline" : "none";
+    });
+    // Update modal
+    if (isAdmin) {
+      loginForm.style.display = "none";
+      logoutBtn.classList.remove("hidden");
+    } else {
+      loginForm.style.display = "block";
+      logoutBtn.classList.add("hidden");
+    }
+  }
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -56,6 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
         activitySelect.appendChild(option);
       });
 
+      updateUI();
+
       // Add event listeners to delete buttons
       document.querySelectorAll(".delete-btn").forEach((button) => {
         button.addEventListener("click", handleUnregister);
@@ -69,6 +106,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle unregister functionality
   async function handleUnregister(event) {
+    if (!isAdmin) {
+      messageDiv.textContent = "Admin access required";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+      return;
+    }
+
     const button = event.target;
     const activity = button.getAttribute("data-activity");
     const email = button.getAttribute("data-email");
@@ -155,6 +200,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Modal event listeners
+  userIcon.addEventListener("click", () => {
+    loginModal.classList.remove("hidden");
+  });
+
+  closeBtn.addEventListener("click", () => {
+    loginModal.classList.add("hidden");
+  });
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    try {
+      const response = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ username, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = data.message;
+        messageDiv.className = "success";
+        loginModal.classList.add("hidden");
+        checkAdminStatus();
+      } else {
+        messageDiv.textContent = data.detail || "Login failed";
+        messageDiv.className = "error";
+      }
+
+      messageDiv.classList.remove("hidden");
+      setTimeout(() => messageDiv.classList.add("hidden"), 5000);
+    } catch (error) {
+      console.error("Login error:", error);
+    }
+  });
+
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/logout", { method: "POST" });
+      const data = await response.json();
+      messageDiv.textContent = data.message;
+      messageDiv.className = "success";
+      loginModal.classList.add("hidden");
+      checkAdminStatus();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  });
+
   // Initialize app
+  checkAdminStatus();
   fetchActivities();
 });
